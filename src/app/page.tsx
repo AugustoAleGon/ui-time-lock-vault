@@ -1,103 +1,125 @@
-import Image from "next/image";
+"use client";
+import { useState, useRef, useEffect } from 'react'
+import abiJson from '../../abi/TimeLockVaultFactory.json'
+import type { Abi } from 'viem'
+import VaultCreation from '@/components/VaultCreation';
+import VaultList from '@/components/VaultList';
+
+const abi = abiJson.abi as Abi;
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const [isClient, setIsClient] = useState(false)
+
+  // Refs para mantener clientes viem, solo se establecen en cliente
+  const walletClient = useRef<any>(null)
+  const publicClient = useRef<any>(null)
+
+  useEffect(() => {
+      setIsClient(true)
+      // Importación dinámica para evitar SSR
+      import('../lib/viem').then(({ walletClient: wc, publicClient: pc }) => {
+          walletClient.current = wc
+          publicClient.current = pc
+        }).catch(() => setIsClient(false))
+  }, [])
+
+    // Agregar estado de cuenta
+  const [account, setAccount] = useState<string>()
+
+
+  const [balance, setBalance] = useState<string>('0')
+
+  // Función de obtención de saldo
+  async function fetchBalance(address: string) {
+      if (!publicClient.current) return
+      const balanceWei = await publicClient.current.getBalance({ address })
+      const balanceCelo = Number(balanceWei) / 1e18
+      setBalance(balanceCelo.toFixed(4))
+}
+
+  // Función de conexión de wallet
+  async function onConnect() {
+      if (!walletClient.current) return
+      const addresses = await walletClient.current.requestAddresses()
+      setAccount(addresses[0])
+      await fetchBalance(addresses[0])
+  }
+
+  // Mostrar estado de carga hasta que se complete la hidratación del lado del cliente
+  if (!isClient) {
+      return (
+          <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+              <div className="max-w-md w-full mx-auto p-6">
+                  <div className="bg-white rounded-xl shadow-lg p-6 space-y-4">
+                      <div className="animate-pulse">
+                          <div className="h-12 bg-gray-200 rounded-lg mb-4"></div>
+                          <div className="text-center text-gray-500">Cargando...</div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )
+  }
+
+return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="max-w-md w-full mx-auto">
+            <div className="bg-white rounded-xl shadow-lg p-6 space-y-6">
+                {/* Encabezado */}
+                <div className="text-center">
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">Wallet Web3</h1>
+                    <p className="text-gray-600">Conecta tu wallet para comenzar</p>
+                </div>
+                {/* Estado de conexión */}
+            {account ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                    <p className="text-sm text-green-800 font-medium">Conectada</p>
+                    <p className="text-xs text-green-600 font-mono break-all">{account}</p>
+                </div>
+            ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <p className="text-sm text-gray-800 font-medium">No conectada</p>
+                    <p className="text-xs text-gray-600">Haz clic en el botón de arriba para conectar tu wallet</p>
+                </div>
+            )}
+            {/* Visualización de saldo */}
+            {account && balance && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-800 font-medium">Saldo de cuenta</p>
+                    <p className="text-lg text-blue-900 font-bold">{balance} CELO</p>
+                </div>
+            )}
+            {account ? (
+              <>
+                <VaultCreation 
+                  account={account} 
+                  walletClient={walletClient.current} 
+                  publicClient={publicClient.current} 
+                  balance={balance} 
+                />
+              </>
+            ) : (
+              <div className="space-y-3">
+                  <button 
+                      onClick={onConnect}
+                      disabled={!!account}
+                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 font-medium flex items-center justify-center space-x-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      <span>{account ? 'Wallet Conectada' : 'Conectar Wallet'}</span>
+                  </button>
+              </div>
+            ) }
+          <VaultList 
+            account={account} 
+            publicClient={publicClient.current} 
+            walletClient={walletClient.current}
+          />
+            </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
-  );
+  )
 }
